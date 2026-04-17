@@ -43,6 +43,8 @@ var TurnstileCheckEnabled = false
 var RegisterEnabled = true
 
 var LogConsumeEnabled = true
+var ConsumeLogRequestMaxLength = 4000
+var ConsumeLogResponseMaxLength = 4000
 
 var SMTPServer = ""
 var SMTPPort = 587

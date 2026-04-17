@@ -13,6 +13,15 @@ function renderTimestamp(timestamp) {
   );
 }
 
+function renderTextCell(text) {
+  if (!text) {
+    return '';
+  }
+  const maxLength = 120;
+  const display = text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+  return <span title={text} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{display}</span>;
+}
+
 const MODE_OPTIONS = [
   { key: 'all', text: '全部用户', value: 'all' },
   { key: 'self', text: '当前用户', value: 'self' }
@@ -296,9 +305,15 @@ const LogsTable = () => {
                 onClick={() => {
                   sortLog('content');
                 }}
-                width={isAdminUser ? 4 : 5}
+                width={2}
               >
                 详情
+              </Table.HeaderCell>
+              <Table.HeaderCell width={isAdminUser ? 3 : 4}>
+                用户问题
+              </Table.HeaderCell>
+              <Table.HeaderCell width={isAdminUser ? 3 : 4}>
+                模型回复
               </Table.HeaderCell>
             </Table.Row>
           </Table.Header>
@@ -326,6 +341,8 @@ const LogsTable = () => {
                     <Table.Cell>{log.completion_tokens ? log.completion_tokens : ''}</Table.Cell>
                     <Table.Cell>{log.quota ? renderQuota(log.quota, 6) : ''}</Table.Cell>
                     <Table.Cell>{log.content}</Table.Cell>
+                    <Table.Cell>{renderTextCell(log.request_content)}</Table.Cell>
+                    <Table.Cell>{renderTextCell(log.response_content)}</Table.Cell>
                   </Table.Row>
                 );
               })}
@@ -333,7 +350,7 @@ const LogsTable = () => {
 
           <Table.Footer>
             <Table.Row>
-              <Table.HeaderCell colSpan={'9'}>
+              <Table.HeaderCell colSpan={isAdminUser ? '11' : '10'}>
                 <Select
                   placeholder='选择明细分类'
                   options={LOG_OPTIONS}

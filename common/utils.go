@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 func OpenBrowser(url string) {
@@ -176,4 +177,15 @@ func Max(a int, b int) int {
 	} else {
 		return b
 	}
+}
+
+func TruncateStringByRune(text string, maxRunes int) string {
+	if maxRunes <= 0 || text == "" {
+		return ""
+	}
+	if utf8.RuneCountInString(text) <= maxRunes {
+		return text
+	}
+	runes := []rune(text)
+	return string(runes[:maxRunes]) + "..."
 }

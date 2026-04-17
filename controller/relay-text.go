@@ -172,6 +172,8 @@ func relayTextHelper(c *gin.Context, relayMode int) *OpenAIErrorWithStatusCode {
 	var textResponse TextResponse
 	isStream := strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream")
 	var streamResponseText string
+	requestContent := common.TruncateStringByRune(buildRequestContentSummary(textRequest, relayMode), common.ConsumeLogRequestMaxLength)
+	responseContent := ""
 
 	defer func() {
 		if consumeQuota {
@@ -212,7 +214,12 @@ func relayTextHelper(c *gin.Context, relayMode int) *OpenAIErrorWithStatusCode {
 			if quota != 0 {
 				tokenName := c.GetString("token_name")
 				logContent := fmt.Sprintf("模型倍率 %.2f，分组倍率 %.2f", modelRatio, groupRatio)
-				model.RecordConsumeLog(userId, promptTokens, completionTokens, textRequest.Model, tokenName, quota, logContent)
+				if isStream {
+					responseContent = common.TruncateStringByRune(streamResponseText, common.ConsumeLogResponseMaxLength)
+				} else {
+					responseContent = common.TruncateStringByRune(responseContent, common.ConsumeLogResponseMaxLength)
+				}
+				model.RecordConsumeLog(userId, promptTokens, completionTokens, textRequest.Model, tokenName, quota, logContent, requestContent, responseContent)
 				model.UpdateUserUsedQuotaAndRequestCount(userId, quota)
 				channelId := c.GetInt("channel_id")
 				model.UpdateChannelUsedQuota(channelId, quota)
@@ -312,6 +319,7 @@ func relayTextHelper(c *gin.Context, relayMode int) *OpenAIErrorWithStatusCode {
 			if err != nil {
 				return errorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
 			}
+			responseContent = extractResponseContentSummary(responseBody, relayMode)
 			if textResponse.Error.Type != "" {
 				return &OpenAIErrorWithStatusCode{
 					OpenAIError: textResponse.Error,
@@ -338,5 +346,90 @@ func relayTextHelper(c *gin.Context, relayMode int) *OpenAIErrorWithStatusCode {
 			return errorWrapper(err, "close_response_body_failed", http.StatusInternalServerError)
 		}
 		return nil
+	}
+}
+
+func buildRequestContentSummary(textRequest GeneralOpenAIRequest, relayMode int) string {
+	switch relayMode {
+	case RelayModeChatCompletions:
+		parts := make([]string, 0, len(textRequest.Messages))
+		for _, message := range textRequest.Messages {
+			if message.Content == "" {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("[%s] %s", message.Role, message.Content))
+		}
+		return strings.Join(parts, "\n")
+	case RelayModeCompletions:
+		return anyToText(textRequest.Prompt)
+	case RelayModeModerations, RelayModeEmbeddings:
+		return anyToText(textRequest.Input)
+	case RelayModeEdits:
+		if textRequest.Prompt == nil {
+			return textRequest.Instruction
+		}
+		return fmt.Sprintf("instruction: %s\nprompt: %s", textRequest.Instruction, anyToText(textRequest.Prompt))
+	default:
+		return ""
+	}
+}
+
+func anyToText(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	default:
+		bytesValue, err := json.Marshal(v)
+		if err != nil {
+			return ""
+		}
+		return string(bytesValue)
+	}
+}
+
+func extractResponseContentSummary(responseBody []byte, relayMode int) string {
+	switch relayMode {
+	case RelayModeChatCompletions:
+		type chatResponse struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		var parsed chatResponse
+		err := json.Unmarshal(responseBody, &parsed)
+		if err != nil {
+			return ""
+		}
+		parts := make([]string, 0, len(parsed.Choices))
+		for _, choice := range parsed.Choices {
+			if choice.Message.Content != "" {
+				parts = append(parts, choice.Message.Content)
+			}
+		}
+		return strings.Join(parts, "\n")
+	case RelayModeCompletions:
+		type completionResponse struct {
+			Choices []struct {
+				Text string `json:"text"`
+			} `json:"choices"`
+		}
+		var parsed completionResponse
+		err := json.Unmarshal(responseBody, &parsed)
+		if err != nil {
+			return ""
+		}
+		parts := make([]string, 0, len(parsed.Choices))
+		for _, choice := range parsed.Choices {
+			if choice.Text != "" {
+				parts = append(parts, choice.Text)
+			}
+		}
+		return strings.Join(parts, "\n")
+	default:
+		return ""
 	}
 }

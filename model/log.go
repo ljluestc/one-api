@@ -17,6 +17,8 @@ type Log struct {
 	Quota            int    `json:"quota" gorm:"default:0"`
 	PromptTokens     int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens int    `json:"completion_tokens" gorm:"default:0"`
+	RequestContent   string `json:"request_content" gorm:"type:text"`
+	ResponseContent  string `json:"response_content" gorm:"type:text"`
 }
 
 const (
@@ -44,7 +46,7 @@ func RecordLog(userId int, logType int, content string) {
 	}
 }
 
-func RecordConsumeLog(userId int, promptTokens int, completionTokens int, modelName string, tokenName string, quota int, content string) {
+func RecordConsumeLog(userId int, promptTokens int, completionTokens int, modelName string, tokenName string, quota int, content string, requestContent string, responseContent string) {
 	if !common.LogConsumeEnabled {
 		return
 	}
@@ -59,6 +61,8 @@ func RecordConsumeLog(userId int, promptTokens int, completionTokens int, modelN
 		TokenName:        tokenName,
 		ModelName:        modelName,
 		Quota:            quota,
+		RequestContent:   requestContent,
+		ResponseContent:  responseContent,
 	}
 	err := DB.Create(log).Error
 	if err != nil {
