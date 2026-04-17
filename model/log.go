@@ -50,6 +50,8 @@ func RecordConsumeLog(userId int, promptTokens int, completionTokens int, modelN
 	if !common.LogConsumeEnabled {
 		return
 	}
+	requestContent = common.TruncateStringByRune(requestContent, common.ConsumeLogRequestMaxLength)
+	responseContent = common.TruncateStringByRune(responseContent, common.ConsumeLogResponseMaxLength)
 	log := &Log{
 		UserId:           userId,
 		Username:         GetUsernameById(userId),
